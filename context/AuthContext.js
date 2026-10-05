@@ -233,7 +233,21 @@ export const AuthProvider = ({ children }) => {
         return { success: false };
       }
 
-      const currentFavorites = user?.favorites || [];
+      // Diagnostic temporaire : confirme la forme réelle de user.favorites
+      console.log(
+        "[toggleFavorite] typeof user.favorites:",
+        typeof user?.favorites,
+        "isArray:",
+        Array.isArray(user?.favorites),
+        "value:",
+        JSON.stringify(user?.favorites),
+      );
+
+      // Durci : si user.favorites existe mais n'est pas un vrai tableau
+      // (ex: objet malformé renvoyé par la session), on ne plante pas
+      const currentFavorites = Array.isArray(user?.favorites)
+        ? user.favorites
+        : [];
       const backupFavorites = JSON.parse(JSON.stringify(currentFavorites));
 
       const favoriteIndex = currentFavorites.findIndex(

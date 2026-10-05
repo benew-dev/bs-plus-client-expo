@@ -89,7 +89,12 @@ const Header = () => {
     }
   }, [session, loadCart]);
 
-  const favoritesCount = user?.favorites?.length || 0;
+  // Array.isArray : si favorites arrive encore sous forme de chaîne JSON
+  // ("[]"), .length compterait les caractères ("[]".length === 2) et non
+  // les éléments — d'où le badge à "2" vu avant le premier ajout réel.
+  const favoritesCount = Array.isArray(user?.favorites)
+    ? user.favorites.length
+    : 0;
 
   const closeUserMenu = () => setUserMenuOpen(false);
 

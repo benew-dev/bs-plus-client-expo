@@ -151,7 +151,11 @@ export const OrderProvider = ({ children }) => {
       if (data.success && data.id) {
         setOrderId(data.id);
         setError(null);
-        router.push("/confirmation");
+        // replace (et non push) : review-order reste sinon monté en
+        // arrière-plan et réagit au panier qui se vide juste après,
+        // redirigeant par-dessus la confirmation (bug déjà vu et corrigé
+        // dans le premier projet).
+        router.replace("/confirmation");
       } else {
         captureClientError(
           new Error("Réponse API malformée lors de la création de commande"),
