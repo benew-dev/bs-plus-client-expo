@@ -163,21 +163,21 @@ export const AuthProvider = ({ children }) => {
 
       if (!currentPassword || !newPassword) {
         setError("Tous les champs sont obligatoires");
-        return;
+        return { success: false };
       }
       if (currentPassword === newPassword) {
         setError("Le nouveau mot de passe doit être différent");
-        return;
+        return { success: false };
       }
       if (newPassword.length < 8) {
         setError("Minimum 8 caractères pour le nouveau mot de passe");
-        return;
+        return { success: false };
       }
       if (newPassword !== confirmPassword) {
         setError(
           "Le nouveau mot de passe et la confirmation ne correspondent pas",
         );
-        return;
+        return { success: false };
       }
 
       const { error: changeError } = await authChangePassword({
@@ -196,15 +196,18 @@ export const AuthProvider = ({ children }) => {
           false,
         );
         setError(errorMessage);
-        return;
+        return { success: false, error: errorMessage };
       }
 
       showToast("Mot de passe mis à jour avec succès!");
       setTimeout(() => router.replace("/me"), 1000);
+      return { success: true };
     } catch (error) {
-      setError("Problème de connexion. Vérifiez votre connexion.");
+      const errorMessage = "Problème de connexion. Vérifiez votre connexion.";
+      setError(errorMessage);
       captureClientError(error, "AuthContext", "updatePassword", true);
       console.error("Password update error:", error.message);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
@@ -392,29 +395,42 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Envoie un email de contact via /api/v1/emails
+   * Envoie un email de contact via /api/v1/emails.
+   * Fonctionne pour un utilisateur connecté (subject/message suffisent) et
+   * pour un visiteur non connecté (name/email requis par le serveur dans ce
+   * cas). Corrigé par rapport au web : name/email sont bien transmis ici
+   * (le web original les ignorait silencieusement), et la fonction retourne
+   * { success } au lieu de forcer une redirection vers /me — une redirection
+   * qui n'a pas de sens pour un visiteur non connecté. C'est à l'appelant
+   * de décider quoi faire du résultat (afficher un succès, naviguer, etc.).
    */
-  const sendEmail = async ({ subject, message }) => {
+  const sendEmail = async ({ name, email, subject, message }) => {
     try {
       setLoading(true);
       setError(null);
 
       if (!subject || !subject.trim()) {
         setError("Le sujet est obligatoire");
-        return;
+        return { success: false };
       }
       if (!message || !message.trim()) {
         setError("Le message est obligatoire");
-        return;
+        return { success: false };
       }
       if (subject.length > 200) {
         setError("Le sujet est trop long (max 200 caractères)");
-        return;
+        return { success: false };
       }
       if (message.length > 5000) {
         setError("Le message est trop long (max 5000 caractères)");
-        return;
+        return { success: false };
       }
+
+      const body = { subject, message };
+      // name/email : requis par le serveur uniquement pour un visiteur non
+      // connecté (voir /api/v1/emails) ; transmis seulement s'ils sont fournis
+      if (name) body.name = name;
+      if (email) body.email = email;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -423,7 +439,7 @@ export const AuthProvider = ({ children }) => {
       try {
         res = await authenticatedFetch("/api/v1/emails", {
           method: "POST",
-          body: JSON.stringify({ subject, message }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
       } finally {
@@ -466,22 +482,27 @@ export const AuthProvider = ({ children }) => {
         );
 
         setError(errorMessage);
-        return;
+        return { success: false, error: errorMessage };
       }
 
       if (data?.success) {
         showToast("Message envoyé avec succès!");
-        router.replace("/me");
+        return { success: true };
       }
+
+      setError("Réponse inattendue du serveur");
+      return { success: false, error: "Réponse inattendue du serveur" };
     } catch (error) {
+      let errorMessage = "Problème de connexion. Vérifiez votre connexion.";
       if (error.name === "AbortError") {
-        setError("La requête a pris trop de temps");
+        errorMessage = "La requête a pris trop de temps";
         captureClientError(error, "AuthContext", "sendEmail", false);
       } else {
-        setError("Problème de connexion. Vérifiez votre connexion.");
         captureClientError(error, "AuthContext", "sendEmail", true);
       }
       console.error("Email send error:", error.message);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }
